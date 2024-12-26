@@ -149,16 +149,15 @@ class WebParserTool(Tool):
         except Exception as e:
             return {"error": f"Parsing error: {str(e)}"}
         
-
-
+        
 if __name__ == "__main__":
-    #pdf_tool = PDFParserTool()
-    #pdf_result = pdf_tool.execute(file_path=r"src\user_data\Resume.pdf") 
-    #print(pdf_result)
+    pdf_tool = PDFParserTool()
+    pdf_result = pdf_tool.execute(file_path=r"src\user_data\Resume.pdf") 
+    print(pdf_result)
 
-    #search = WebSearchTool()
-    #results = search.execute("What is SAP Company?")
-    #print(results["abstract"])
+    search = WebSearchTool()
+    results = search.execute("What is SAP Company?")
+    print(results["abstract"])
 
     search = WebParserTool()
     results = search.execute("https://job-boards.greenhouse.io/andurilindustries/jobs/4552470007?gh_jid=4552470007&gh_src=6a93de687us")
