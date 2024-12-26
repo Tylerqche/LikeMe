@@ -1,11 +1,9 @@
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-import os
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
 from huggingface_hub import InferenceClient
 import Secrets
+import agent_tools
 
 @dataclass
 class AgentRole:
@@ -176,7 +174,7 @@ def main():
     )
     
     # Test the agent
-    query = "Why is America racist?"
+    query = "What color is the sky?"
     print(f"\nQuery: {query}")
     print("\nGenerating response...")
     response = agent.run(query)
