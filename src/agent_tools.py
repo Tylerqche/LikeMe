@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from abc import abstractmethod
+from typing import Dict, Any
 from PyPDF2 import PdfReader
+from bs4 import BeautifulSoup
+import re
 import requests
 import os
 
@@ -23,6 +25,15 @@ class WebSearchTool(Tool):
         self.base_url = "https://api.duckduckgo.com/"
     
     def execute(self, query: str) -> Dict[str, Any]:
+        """
+        Search a web query and return its result.
+        
+        Args:
+            Query: Search prompt to enter into engine
+            
+        Returns:
+            Dictionary containing an abstract and relevant topics
+        """
         try:
             params = {
                 "q": query,
@@ -36,18 +47,18 @@ class WebSearchTool(Tool):
             
             results = response.json()
             
-            return {
-                "success": True,
+            result = {
+                "success": True if results.get("Abstract", "") else False,
                 "abstract": results.get("Abstract", ""),
                 "related_topics": results.get("RelatedTopics", []),
                 "source": results.get("AbstractSource", ""),
                 "query": query
             }
+
+            return result
             
         except requests.RequestException as e:
             return {"error": f"Search failed: {str(e)}"}
-        except Exception as e:
-            return {"error": f"Error: {str(e)}"}
 
 class PDFParserTool(Tool):
     def __init__(self):
@@ -86,19 +97,69 @@ class PDFParserTool(Tool):
             
         except Exception as e:
             return {"error": f"Error processing PDF: {str(e)}"}
+        
+class WebParserTool(Tool):
+    def __init__(self):
+        super().__init__(
+            name="web_parser",
+            description="Extract content from any website"
+        )
+    
+    def clean_text(self, text: str) -> str:
+        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r'\n\s*\n', '\n', text)
+        return text.strip()
+    
+    def execute(self, url: str) -> Dict[str, Any]:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Remove unwanted elements
+            for tag in ['script', 'style', 'meta', 'link', 'header', 'footer', 'nav']:
+                for element in soup.find_all(tag):
+                    element.decompose()
+            
+            # Find main content
+            content = None
+            for selector in ['article', 'main', '[role="main"]', '#content', '.content', '.post', '.article']:
+                element = soup.select_one(selector)
+                if element:
+                    content = element.get_text(separator='\n')
+                    break
+            
+            # Fallback to body if no main content found
+            if not content:
+                content = soup.body.get_text(separator='\n')
+            
+            return {
+                "success": True,
+                "title": soup.title.string if soup.title else "",
+                "content": self.clean_text(content),
+                "url": url
+            }
+            
+        except Exception as e:
+            return {"error": f"Parsing error: {str(e)}"}
+        
+
 
 if __name__ == "__main__":
-    pdf_tool = PDFParserTool()
-    pdf_result = pdf_tool.execute(file_path=r"C:\Users\tyler\OneDrive\Documents\Design and Description Final.pdf") 
+    #pdf_tool = PDFParserTool()
+    #pdf_result = pdf_tool.execute(file_path=r"src\user_data\Resume.pdf") 
+    #print(pdf_result)
 
-    output_file = r"src\user_data\pdf_output.txt"
-    
-    # Write the result to a text file
-    with open(output_file, 'w') as file:
-        file.write(str(pdf_result))  # Write the result as a string
+    #search = WebSearchTool()
+    #results = search.execute("What is SAP Company?")
+    #print(results["abstract"])
 
-    print(f"PDFParserTool Result has been written to: {output_file}")
-
-    search = WebSearchTool()
-    results = search.execute("What is Netflix?")
+    search = WebParserTool()
+    results = search.execute("https://job-boards.greenhouse.io/andurilindustries/jobs/4552470007?gh_jid=4552470007&gh_src=6a93de687us")
     print(results)
