@@ -2,9 +2,8 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from PyPDF2 import PdfReader
-from typing import Optional, Dict, Any
+import requests
 import os
-
 
 @dataclass
 class Tool:
@@ -19,12 +18,36 @@ class WebSearchTool(Tool):
     def __init__(self):
         super().__init__(
             name="web_search",
-            description="Search the web for information about a given query"
+            description="Search the web using DuckDuckGo"
         )
+        self.base_url = "https://api.duckduckgo.com/"
     
-    def execute(self, query: str) -> str:
-        # Simulate web search for demo purposes
-        return f"Found information about: {query}"
+    def execute(self, query: str) -> Dict[str, Any]:
+        try:
+            params = {
+                "q": query,
+                "format": "json",
+                "no_html": 1,
+                "skip_disambig": 1
+            }
+            
+            response = requests.get(self.base_url, params=params)
+            response.raise_for_status()
+            
+            results = response.json()
+            
+            return {
+                "success": True,
+                "abstract": results.get("Abstract", ""),
+                "related_topics": results.get("RelatedTopics", []),
+                "source": results.get("AbstractSource", ""),
+                "query": query
+            }
+            
+        except requests.RequestException as e:
+            return {"error": f"Search failed: {str(e)}"}
+        except Exception as e:
+            return {"error": f"Error: {str(e)}"}
 
 class PDFParserTool(Tool):
     def __init__(self):
@@ -33,13 +56,12 @@ class PDFParserTool(Tool):
             description="Extract and analyze text content from PDF files"
         )
     
-    def execute(self, file_path: str, pages: Optional[List[int]] = None) -> Dict[str, Any]:
+    def execute(self, file_path: str) -> Dict[str, Any]:
         """
         Parse a PDF file and extract its content.
         
         Args:
             file_path: Path to the PDF file
-            pages: Optional list of specific pages to parse. If None, parses all pages.
             
         Returns:
             Dictionary containing extracted text and metadata
@@ -47,27 +69,36 @@ class PDFParserTool(Tool):
         try:
             if not os.path.exists(file_path):
                 return {"error": f"File not found: {file_path}"}
-                
-            reader = PdfReader(file_path)
-            total_pages = len(reader.pages)
             
-            # Initialize results
+            reader = PdfReader(file_path)
+            
             result = {
-                "total_pages": total_pages,
-                "extracted_text": "",
-                "metadata": reader.metadata if reader.metadata else {},
-                "pages_parsed": []
+                "success": True,
+                "text": [],
+                "metadata": reader.metadata,
+                "num_pages": len(reader.pages)
             }
             
-            # Determine which pages to parse
-            pages_to_parse = pages if pages else range(total_pages)
-            
-            # Extract text from specified pages
-            for page_num in pages_to_parse:
-                if 0 <= page_num < total_pages:
-                    page = reader.pages[page_num]
-                    text = page.extract_text()
-                    result["extracted_text"] += f"\n--- Page {page_num + 1} ---\n{text}"
-                    result["pages_parsed"].append(page_num + 1)
+            for page in reader.pages:
+                result["text"].append(page.extract_text())
             
             return result
+            
+        except Exception as e:
+            return {"error": f"Error processing PDF: {str(e)}"}
+
+if __name__ == "__main__":
+    pdf_tool = PDFParserTool()
+    pdf_result = pdf_tool.execute(file_path=r"C:\Users\tyler\OneDrive\Documents\Design and Description Final.pdf") 
+
+    output_file = r"src\user_data\pdf_output.txt"
+    
+    # Write the result to a text file
+    with open(output_file, 'w') as file:
+        file.write(str(pdf_result))  # Write the result as a string
+
+    print(f"PDFParserTool Result has been written to: {output_file}")
+
+    search = WebSearchTool()
+    results = search.execute("What is Netflix?")
+    print(results)
